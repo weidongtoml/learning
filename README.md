@@ -1,4 +1,4 @@
 learning
 ========
 
-Just a collection of javascript files and explain simple machine learning concepts.
+Just a collection of javascript files that explain simple machine learning concepts.
