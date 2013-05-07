@@ -4,37 +4,9 @@
 		<title>How to Generate Different Probabilty Distributions</title>
 		<script src="./jquery.js"></script>
 		<script src="./highcharts.src.js"></script>
+		<script src="./rnd.js"></script>
+		<script src="./graph_util.js"></script>
 		<script type="text/javascript">	
-			var $RND = {
-				// Return a uniform random number generator
-				uniform_rng: function() {
-					return Math.random;
-				},
-				// Return a Gaussian Random Generator
-				gaussian_rng: function(mean, stddev) {
-					var mu = mean;
-					var sigma = stddev;
-					var uni_rng = this.uniform_rng();
-					return function () {
-						var u = uni_rng();
-						var v = uni_rng();
-						var z = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0*Math.PI*v);
-						return z * sigma + mu;
-					};
-				},
-				// Return the Guassian Probability Density Function
-				gaussian_pdf: function(mean, stddev) {
-					var mu = mean;
-					var sigma = stddev;
-					var norm_factor = 1.0 / (sigma * Math.sqrt(2 * Math.PI));
-					var z_factor = 2.0 * sigma * sigma;
-					return function(x) {
-						return  norm_factor * Math.exp(-(x - mu) * (x - mu) / z_factor);
-					};
-				},
-			};
-			
-			
 			// generates some random number and plot their relative frequency
 			var get_sample_from_distribution = function(random_number_generator, dimensions, sample_size) {
 				//initialize return frequency array.
@@ -58,16 +30,6 @@
 				return samples;
 			};
 			
-			var convertToCoordinates = function(X, Y) {
-				if (X.length != Y.length) {
-					throw "Error: expected to array to of the same size, but got: " + X.length + " and " + Y.length + "instead";
-				}
-				var Z = [];
-				for (var i = 0; i < X.length; ++i) {
-					Z[i] = [X[i], Y[i]];
-				}
-				return Z;
-			};
 			
 			var interval = 0.02;
 			var idx_array = [];
