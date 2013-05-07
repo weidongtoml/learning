@@ -112,9 +112,11 @@
 					if (u_y < P_y) {
 						//accept this sample that falls within P(x)
 						plot.series[2].addPoint({x: x, y: u_y});
+						return true;
 					} else {
 						//rejects this sample that falls outside P(x)
 						plot.series[3].addPoint({x: x, y: u_y});
+						return false;
 					}
 				};
 			};
@@ -123,9 +125,16 @@
 				var chart_obj = plot_charts("chart");
 				var rejection_sampler = create_rejection_sampler(P, Q, Q_sampler, chart_obj);
 				
+				var accepted_samples = 0;
+				var rejected_samples = 0;
+				
 				var total_epochs = 1000;
 				var simulation_loop = function() {
-					rejection_sampler();
+					var is_accepted = rejection_sampler();
+					accepted_samples += (is_accepted ? 1 : 0);
+					rejected_samples += (is_accepted ? 0 : 1);
+					var acc_rate = Math.floor(accepted_samples * 100 / (accepted_samples + rejected_samples));
+					$('#acceptance').html(''+acc_rate+'%');
 					if (total_epochs-- > 0) {
 						setTimeout(simulation_loop, 100);
 					}
@@ -152,6 +161,7 @@
 		<hr/>
 		<h2>Simulation</h2>
 		<div id="chart"></div>
+		<p>Acceptance Rate: <span id="acceptance"></span>.</p>
 		<hr/>
 		<h2>The Algorithm</h2>
 		<p>RejectionSampling ( p(x), q(x), q_sampler() )<br/>
@@ -162,5 +172,8 @@
 			<li>if u &lt P(X1) / (M*Q(X1)) then return X1</li>
 			<li>else invoke RejectionSampling</li>
 		</ul>
+		<hr/>
+		<h2>Notes</h2>
+		<p>Rejection sampling required the specification of the proposal distribution Q(x), and the constant M. If M is too large, we would have to reject a of the samples (with a acceptance rate close to 1/M). If M is too small, we run the risk of not satisfying its second condition. Clearly, the efficient use of this algorithm required appropriate specification of Q(x) and M. Unlike the simulation example given, we might visually select P(x) and M, or high-dimensional distribution, this would be impossible.</p>
 	</body>
 </html>
