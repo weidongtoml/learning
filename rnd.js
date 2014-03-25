@@ -8,6 +8,8 @@ var $RND = {
 		var mu = mean;
 		var sigma = stddev;
 		var uni_rng = this.uniform_rng();
+        // Use the Box-Muller method for generating a random number from standard normal distribution
+        // then transform it to get the required result.
 		return function () {
 			var u = uni_rng();
 			var v = uni_rng();

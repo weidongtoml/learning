@@ -46,8 +46,8 @@
 				title: {
 					text: 'x'
 				},
-				max: 1.0,
-				min: -1.0,
+				//max: 1.0,
+				//min: -1.0,
 			},
 			yAxis: [{
 				title: {
@@ -173,6 +173,15 @@
 				h: h_activation,
 			};
 		}
+		// Adjust the hidden layer activation using the output layer coefficient.
+		var getRealHiddenOutput = function(h) {
+			var w = getOutputLayerWeight();
+			var h_adj = [];
+			for (var i = 0; i < h.length; ++i) {
+				h_adj[i] = h[i] * w[i];
+			}
+			return h_adj;
+		}
 		// Returns the prediction output by the network for the given input x.
 		var predict = function(x) {
 			if (x.length != input_layer_size) {
@@ -290,7 +299,7 @@
 			}
 		}
 		// Train the neural network using the given training data.
-		var train = function(samples, max_epoch, costs) {
+		var train = function(samples, max_epoch, costs, validation_samples, validation_costs) {
 			var updater = rprop(0.1, 50.0, 0.000001, 1.2, 0.5);
 			for (var epoch = 0; epoch < max_epoch; ++epoch) {
 				var gradients = []
@@ -316,6 +325,16 @@
 					console.log("Training cost for epoch " +  epoch + ": " + cost);
 				}
 				// TODO(weidoliang): possibly add validation cost
+				if (validation_samples !== undefined && validation_costs !== undefined) {
+					var validation_error = 0;
+					for (var j = 0; j < validation_samples.length; ++j) {
+						var x = validation_samples[j].x;
+						var y = validation_samples[j].y;
+						var p = predict(x);
+						validation_error += 0.5 * Math.pow(y - p, 2);
+					}
+					validation_costs.push(validation_error);
+				}
 				updater(gradients);
 			}
 		}
@@ -442,30 +461,61 @@
 			unit_tests: unitTests,
 			predict: predict,
 			train: train,
+			feedForward: feedForward,
+			realHiddenOutput: getRealHiddenOutput,
 		}
 		return network;
 	}
 
 	$(document).ready(function(){
-		var objective = getObjectiveFunction();
-		var samples = sampleFunction(objective.func, objective.range, 0.03);
-		var chart = createLineChart("objective");
-		chart.addSeries({name: 'samples', data: samples});
-		
-		var input_layer_size = 2;
-		var hidden_layer_size = 100;
-		
-		var network = twoLayerNeuralNetwork(input_layer_size, hidden_layer_size);
-		
+		// Run unit tests to verify the correctness of the implementation.
 		var do_tests = true;
 		if (do_tests) {
-			var test_network =twoLayerNeuralNetwork(2, 3);
+			var test_network = twoLayerNeuralNetwork(2, 3);
 			var test_cases_failed = test_network.unit_tests();
 			if (test_cases_failed != 0) {
 				console.log("Number of unit tests failed is " + test_cases_failed);
 			}	
 		}
 		
+		// Retrieve the function to learn and obtain samples from it.
+		var objective = getObjectiveFunction();
+		var samples = sampleFunction(objective.func, objective.range, 0.07);
+		var validation_samples = sampleFunction(objective.func, [-0.99, 0.99], 0.03);
+		
+		// Plot the objective function.
+		var chart = new Highcharts.Chart({
+			chart: {
+				renderTo: 'objective',
+				type: 'line',
+			},
+			title: {
+				text: 'Objective Function Vs Neural Network Approximation',
+			},
+			xAxis: {
+				title: {
+					text: 'x'
+				},
+			},
+			yAxis: [{
+				title: {
+					text: 'Y'
+				},
+			}],
+			series: [{
+				name: 'Objective Function',
+				data: samples,
+			},{
+				name: 'Validation Function',
+				data: validation_samples,
+			}],
+		});
+		
+		// Create the neural network.
+		var input_layer_size = 2;
+		var hidden_layer_size = 5;
+		var num_epochs = 1000;
+		var network = twoLayerNeuralNetwork(input_layer_size, hidden_layer_size);
 		network.init();
 		
 		// convert data to appropriate format for network training.
@@ -475,32 +525,95 @@
 			var y = samples[i][1];
 			network_samples[i] = {x: [x, 1], y: y};
 		}
+		var network_validation_samples = [];
+		for (var i = 0; i < validation_samples.length; ++i) {
+			var x = validation_samples[i][0];
+			var y = validation_samples[i][1];
+			network_validation_samples[i] = {x: [x, 1], y: y};
+		}
 		
 		// train the neural network.
-		//console.log(network_samples);
 		var training_costs = [];
-		network.train(network_samples, 100, training_costs);
-		console.log(training_costs);
-		
+		var validation_costs = [];
+		network.train(network_samples, num_epochs, training_costs, network_validation_samples, validation_costs);
+
 		// retrieve predictions from neural network.
 		var get_predictions = function(network, network_samples) {
 			var output = [];
+			var components = [];
+			for (var i = 0; i < hidden_layer_size; ++i) {
+				components[i] = [];
+			}
 			var cost = 0;
 			for (var i = 0; i < network_samples.length; ++i) {
 				var x = network_samples[i].x;
 				var y = network_samples[i].y;
-				var p = network.predict(x);
-				output.push([x[0], p]);
-				cost += 0.5 * Math.pow(y - p, 2);
+				var r = network.feedForward(x);
+				output.push([x[0], r.p]);
+				
+				// Add hidden layer outputs.
+				var h_adj = network.realHiddenOutput(r.h);
+				for (var j = 0; j < hidden_layer_size; ++j) {
+					components[j].push([x[0], h_adj[j]]);
+				}
+				
+				cost += 0.5 * Math.pow(y - r.p, 2);
 			}
 			return {
 				series: output,
+				components: components,
 				cost: cost,
 			};
 		}
 		var pred_result = get_predictions(network, network_samples);
-		chart.addSeries({name: 'epoch-1-' + pred_result.cost, data: pred_result.series});
+		chart.addSeries({name: 'network-approximation', data: pred_result.series});
 		
+		for (var i = 0; i < hidden_layer_size; ++i) {
+			chart.addSeries({
+				name: 'comp-' + i, 
+				data: pred_result.components[i],
+				visible: false,
+			});
+		}
+		
+		// Plot the learning curve, after subsampling to make the plot easier to understand.
+		var training_errors = [];
+		var validation_errors = [];
+		var interval_size = Math.round(training_costs.length / 50);
+		for (var i = 0; i < training_costs.length; i+=interval_size) {
+			training_errors.push([i, training_costs[i]]);
+			validation_errors.push([i, validation_costs[i]]);
+		}
+		var learning_curve_chart = new Highcharts.Chart({			
+			chart: {
+				renderTo: "learning_curve",
+				type: 'line',
+			},
+			title: {
+				text: 'Learning Curve',
+			},
+			xAxis: {
+				title: {
+					text: 'Epoch',
+				},
+				tickInterval: interval_size,
+			},
+			yAxis: {
+				title: {
+					text: 'Error',
+				},
+				type: 'logarithmic'
+			},
+			series: [{
+				name: 'Training Error',
+				data: training_errors,
+				pointStart: 1
+			},{
+				name: 'Validation Error',
+				data: validation_errors,
+				pointStart: 1
+			}]
+		});
 	});
 	</script>
 </head>
@@ -508,8 +621,8 @@
 	<h1>How A Two Layer Neural Network Learns to Fit a Univariate Function</h1>
 	<hr/>
 	<h2>The Graph</h2>
-	<div id="objective" style='width:600p; height: 600px;'></div>
-	<div id="network_components" style='width:600p; height: 600px;'></div>
+	<div id="objective" style='width:100%; height: 600px;'></div>
+	<div id="learning_curve" style="width:100%; height: 600px;"></div>
 	<h2>The Model</h2>
 	<p>
 	</p>
